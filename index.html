@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Binary Search Guessing Game</title>
+  <style>
+    canvas.fireworks {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 999;
+    }
+    :root {
+      --bg: #020617;
+      --card: rgba(15, 23, 42, 0.92);
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --primary: #38bdf8;
+      --primary-dark: #0ea5e9;
+      --success: #22c55e;
+      --warning: #fbbf24;
+      --danger: #fb7185;
+      --excluded-bg: #111827;
+      --excluded-text: #475569;
+      --active-bg: #0f172a;
+      --active-border: #1d4ed8;
+      --guess-bg: #3f2b05;
+      --guess-border: #fbbf24;
+      --answer-bg: #052e16;
+      --answer-border: #22c55e;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top, rgba(56, 189, 248, 0.18) 0%, transparent 30%),
+        radial-gradient(circle at bottom right, rgba(59, 130, 246, 0.12) 0%, transparent 25%),
+        var(--bg);
+      display: flex;
+      justify-content: center;
+      padding: 32px 16px;
+    }
+
+    .app {
+      width: min(980px, 100%);
+      background: var(--card);
+      border-radius: 24px;
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+      border: 1px solid rgba(148, 163, 184, 0.12);
+      backdrop-filter: blur(16px);
+      padding: 28px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(1.8rem, 4vw, 3rem);
+      letter-spacing: -0.04em;
+    }
+
+    .subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 1rem;
+      line-height: 1.6;
+    }
+
+    .panel {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+      background: rgba(15, 23, 42, 0.72);
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      border-radius: 18px;
+      padding: 18px;
+      margin-bottom: 22px;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-content: center;
+      align-items: center;
+    }
+
+    button {
+      border: none;
+      border-radius: 12px;
+      padding: 12px 18px;
+      font-size: 1rem;
+      font-weight: 700;
+      color: #fff;
+      background: var(--primary);
+      cursor: pointer;
+      transition: transform 0.15s, background 0.2s, opacity 0.2s;
+    }
+
+    button:hover:not(:disabled) {
+      background: var(--primary-dark);
+      transform: translateY(-1px);
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+
+    .reset-btn {
+      background: #334155;
+    }
+
+    .reset-btn:hover:not(:disabled) {
+      background: #1e293b;
+    }
+
+    .status {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+    }
+
+    .status-card {
+      background: rgba(30, 41, 59, 0.72);
+      border: 1px solid rgba(148, 163, 184, 0.14);
+      border-radius: 14px;
+      padding: 14px;
+      text-align: center;
+    }
+
+    .status-card span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin-bottom: 6px;
+    }
+
+    .status-card strong {
+      font-size: 1.25rem;
+    }
+
+    .message {
+      min-height: 32px;
+      text-align: center;
+      font-size: 1.1rem;
+      font-weight: 800;
+      color: var(--primary-dark);
+    }
+
+    .message.too-high {
+      color: var(--danger);
+    }
+
+    .message.too-low {
+      color: var(--warning);
+    }
+
+    .message.bingo {
+      color: var(--success);
+    }
+
+    .number-grid {
+      display: grid;
+      grid-template-columns: repeat(10, minmax(42px, 1fr));
+      gap: 8px;
+    }
+
+    .number {
+      aspect-ratio: 1 / 1;
+      display: grid;
+      place-items: center;
+      border-radius: 12px;
+      border: 1px solid var(--active-border);
+      background: var(--active-bg);
+      font-weight: 800;
+      transition: opacity 0.25s, background 0.25s, color 0.25s, transform 0.2s, border-color 0.25s, box-shadow 0.2s;
+      user-select: none;
+      cursor: pointer;
+    }
+
+    .number:hover:not(.excluded):not(.answer) {
+      transform: translateY(-2px) scale(1.04);
+      box-shadow: 0 10px 24px rgba(56, 189, 248, 0.35);
+    }
+
+    .number.excluded {
+      opacity: 0.35;
+      background: var(--excluded-bg);
+      color: var(--excluded-text);
+      border-color: #1e293b;
+      cursor: not-allowed;
+    }
+
+    .number.last-guess {
+      background: var(--guess-bg);
+      border-color: var(--guess-border);
+      transform: scale(1.08);
+    }
+
+    .number.answer {
+      background: var(--answer-bg);
+      border-color: var(--answer-border);
+      color: #86efac;
+      transform: scale(1.12);
+      box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.18);
+      cursor: default;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-content: center;
+      margin: 18px 0 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .swatch {
+      width: 16px;
+      height: 16px;
+      border-radius: 5px;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+    }
+
+    .swatch.active {
+      background: var(--active-bg);
+    }
+
+    .swatch.excluded {
+      background: var(--excluded-bg);
+      opacity: 0.35;
+    }
+
+    .swatch.guess {
+      background: var(--guess-bg);
+      border-color: var(--guess-border);
+    }
+
+    .swatch.answer {
+      background: var(--answer-bg);
+      border-color: var(--answer-border);
+    }
+
+    @media (max-width: 640px) {
+      .app {
+        padding: 20px;
+      }
+
+      .number-grid {
+        grid-template-columns: repeat(5, 1fr);
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <h1>二分搜尋猜數字遊戲</h1>
+      <p class="subtitle">系統已隨機選出 1 到 100 之間的一個數字。直接點選數字來猜，每次猜測後，已排除的範圍會變暗。</p>
+    </header>
+
+    <section class="panel" aria-label="Game controls">
+      <div class="controls">
+        <button id="resetButton" class="reset-btn">重新開始</button>
+      </div>
+
+      <div id="message" class="message">請點選一個數字開始猜測。</div>
+
+      <div class="status">
+        <div class="status-card">
+          <span>目前有效搜尋範圍 low</span>
+          <strong id="lowValue">1</strong>
+        </div>
+        <div class="status-card">
+          <span>目前有效搜尋範圍 high</span>
+          <strong id="highValue">100</strong>
+        </div>
+        <div class="status-card">
+          <span>猜測次數</span>
+          <strong id="attemptValue">0</strong>
+        </div>
+      </div>
+    </section>
+
+    <section id="numberGrid" class="number-grid" aria-label="Numbers from 1 to 100"></section>
+
+    <div class="legend" aria-label="Legend">
+      <span class="legend-item"><span class="swatch active"></span>可點選猜測</span>
+      <span class="legend-item"><span class="swatch excluded"></span>已排除</span>
+      <span class="legend-item"><span class="swatch guess"></span>上次猜測</span>
+      <span class="legend-item"><span class="swatch answer"></span>答案</span>
+    </div>
+  </main>
+
+  <canvas id="fireworksCanvas" class="fireworks"></canvas>
+
+  <script>
+    const numberGrid = document.getElementById("numberGrid");
+    const resetButton = document.getElementById("resetButton");
+    const message = document.getElementById("message");
+    const lowValue = document.getElementById("lowValue");
+    const highValue = document.getElementById("highValue");
+    const attemptValue = document.getElementById("attemptValue");
+    const fireworksCanvas = document.getElementById("fireworksCanvas");
+    const ctx = fireworksCanvas.getContext("2d");
+
+    let targetNumber;
+    let low;
+    let high;
+    let attempts;
+    let lastGuess;
+    let gameOver;
+    let fireworksAnimationId;
+    let fireworks = [];
+
+    function resizeCanvas() {
+      fireworksCanvas.width = window.innerWidth;
+      fireworksCanvas.height = window.innerHeight;
+    }
+
+    function launchFireworks() {
+      cancelAnimationFrame(fireworksAnimationId);
+      fireworks = [];
+
+      for (let burst = 0; burst < 8; burst += 1) {
+        const centerX = Math.random() * fireworksCanvas.width;
+        const centerY = Math.random() * fireworksCanvas.height * 0.6;
+
+        for (let i = 0; i < 36; i += 1) {
+          const angle = (Math.PI * 2 * i) / 36;
+          const speed = Math.random() * 4 + 2;
+
+          fireworks.push({
+            x: centerX,
+            y: centerY,
+            dx: Math.cos(angle) * speed,
+            dy: Math.sin(angle) * speed,
+            radius: Math.random() * 3 + 1,
+            alpha: 1,
+            color: `hsl(${Math.random() * 360}, 100%, 60%)`
+          });
+        }
+      }
+
+      animateFireworks();
+    }
+
+    function animateFireworks() {
+      ctx.clearRect(0, 0, fireworksCanvas.width, fireworksCanvas.height);
+
+      fireworks.forEach((particle) => {
+        particle.x += particle.dx;
+        particle.y += particle.dy;
+        particle.dy += 0.02;
+        particle.alpha -= 0.012;
+
+        ctx.globalAlpha = Math.max(particle.alpha, 0);
+        ctx.beginPath();
+        ctx.arc(particle.x, particle.y, particle.radius, 0, Math.PI * 2);
+        ctx.fillStyle = particle.color;
+        ctx.fill();
+      });
+
+      fireworks = fireworks.filter((particle) => particle.alpha > 0);
+      ctx.globalAlpha = 1;
+
+      if (fireworks.length > 0) {
+        fireworksAnimationId = requestAnimationFrame(animateFireworks);
+      } else {
+        ctx.clearRect(0, 0, fireworksCanvas.width, fireworksCanvas.height);
+      }
+    }
+
+    function createNumberGrid() {
+      numberGrid.innerHTML = "";
+
+      for (let number = 1; number <= 100; number += 1) {
+        const cell = document.createElement("button");
+        cell.type = "button";
+        cell.className = "number";
+        cell.textContent = number;
+        cell.dataset.number = number;
+        cell.setAttribute("aria-label", `猜 ${number}`);
+        cell.addEventListener("click", () => handleGuess(number));
+        numberGrid.appendChild(cell);
+      }
+    }
+
+    function startGame() {
+      targetNumber = Math.floor(Math.random() * 100) + 1;
+      low = 1;
+      high = 100;
+      attempts = 0;
+      lastGuess = null;
+      gameOver = false;
+
+      message.textContent = "請點選一個數字開始猜測。";
+      message.className = "message";
+
+      updateStatus();
+      updateVisualization();
+    }
+
+    function updateStatus() {
+      lowValue.textContent = low;
+      highValue.textContent = high;
+      attemptValue.textContent = attempts;
+    }
+
+    function updateVisualization() {
+      const cells = document.querySelectorAll(".number");
+
+      cells.forEach((cell) => {
+        const number = Number(cell.dataset.number);
+        cell.className = "number";
+        cell.disabled = false;
+
+        if (number < low || number > high) {
+          cell.classList.add("excluded");
+          cell.disabled = true;
+        }
+
+        if (number === lastGuess && !gameOver) {
+          cell.classList.add("last-guess");
+        }
+
+        if (gameOver) {
+          cell.disabled = true;
+        }
+
+        if (gameOver && number === targetNumber) {
+          cell.classList.add("answer");
+        }
+      });
+    }
+
+    function handleGuess(guess) {
+      if (gameOver || guess < low || guess > high) return;
+
+      attempts += 1;
+      lastGuess = guess;
+
+      if (guess === targetNumber) {
+        gameOver = true;
+        message.textContent = `Bingo! You got it! You guessed it in ${attempts} ${attempts === 1 ? "try" : "tries"}.`;
+        message.className = "message bingo";
+        launchFireworks();
+      } else if (guess > targetNumber) {
+        high = guess - 1;
+        message.textContent = "太大！上方範圍已排除。";
+        message.className = "message too-high";
+      } else {
+        low = guess + 1;
+        message.textContent = "太小！下方範圍已排除。";
+        message.className = "message too-low";
+      }
+
+      updateStatus();
+      updateVisualization();
+    }
+
+    resetButton.addEventListener("click", startGame);
+
+    resizeCanvas();
+    window.addEventListener("resize", resizeCanvas);
+
+    createNumberGrid();
+    startGame();
+  </script>
+</body>
+</html>
